@@ -57,7 +57,7 @@ def test_multivariate_gaussian():
 
     fig3 = go.Figure(data=go.Heatmap(x=np.tile(f3, len(f3)), y=np.repeat(f1, len(f1)), z=log_likelihood,
                                      colorscale='ice', showlegend=False))
-    fig3.update_layout(xaxis_title="f1", yaxis_title="f3", title="Log-Likelihood Heatmap Graph",
+    fig3.update_layout(xaxis_title="f3", yaxis_title="f1", title="Log-Likelihood Heatmap Graph",
                        font=dict(family="Arial", size=30))
 
     fig3.show()
