@@ -73,9 +73,9 @@ class LinearRegression(BaseEstimator):
         if not self.include_intercept_:
             to_add = np.ones(X.shape[1])
             new_X = np.concatenate(([to_add], X), axis=0)
-            return (np.transpose(new_X) @ self.coefs_)
+            return (new_X @ self.coefs_)
 
-        return (np.transpose(X) @ self.coefs_)
+        return (X @ self.coefs_)
 
     def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
         """
