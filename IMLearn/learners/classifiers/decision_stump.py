@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Tuple, NoReturn
-from ...base import BaseEstimator
+from IMLearn.base.base_estimator import BaseEstimator
+# from ...base import BaseEstimator
 import numpy as np
 from itertools import product
 
@@ -39,7 +40,12 @@ class DecisionStump(BaseEstimator):
         y : ndarray of shape (n_samples, )
             Responses of input data to fit to
         """
-        raise NotImplementedError()
+        best_loss = None
+        for sign, j in product([-1, 1], range(X.shape[1])):
+            loss, thr = self._find_threshold(X[:, j], y, sign)
+            if best_loss is None or loss < best_loss:
+                self.sign_, self.threshold_, self.j_ = sign, thr, j
+                best_loss = loss
 
     def _predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -63,7 +69,7 @@ class DecisionStump(BaseEstimator):
         Feature values strictly below threshold are predicted as `-sign` whereas values which equal
         to or above the threshold are predicted as `sign`
         """
-        raise NotImplementedError()
+        return self.sign_ * ((X[:, self.j_] >= self.threshold_) * 2 - 1)
 
     def _find_threshold(self, values: np.ndarray, labels: np.ndarray, sign: int) -> Tuple[float, float]:
         """
@@ -95,7 +101,30 @@ class DecisionStump(BaseEstimator):
         For every tested threshold, values strictly below threshold are predicted as `-sign` whereas values
         which equal to or above the threshold are predicted as `sign`
         """
-        raise NotImplementedError()
+        sort_idx = np.argsort(values)
+        values, labels, D = values[sort_idx], np.sign(labels)[sort_idx], np.abs(labels)[sort_idx]
+        thetas = np.concatenate([[-np.inf], (values[1:] + values[:-1]) / 2, [np.inf]])
+        minimal_theta_loss = np.sum(D[labels == sign])
+        losses = np.append(minimal_theta_loss, minimal_theta_loss - np.cumsum(D * (labels * sign)))
+        min_loss_idx = np.argmin(losses)
+        return losses[min_loss_idx], thetas[min_loss_idx]
+
+        # min_loss = 0
+        # curr_loss = 0
+        # min_idx = 0
+        # for i in range(values.shape[0]):
+        #     y_pred = np.zeros(values.shape[0])
+        #     for j in range(values.shape[0]):
+        #         if values[j] >= values[i]:
+        #             y_pred[j] = sign
+        #         else:
+        #             y_pred[j] = -sign
+        #     curr_loss = self._loss(labels, y_pred)
+        #     if curr_loss < min_loss:
+        #         min_loss = curr_loss
+        #         min_idx = i
+        #
+        # return values[min_idx], min_loss
 
     def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
         """
@@ -114,4 +143,5 @@ class DecisionStump(BaseEstimator):
         loss : float
             Performance under missclassification loss function
         """
-        raise NotImplementedError()
+        y_pred = self._predict(X)
+        return float(np.sum(np.sign(y) != np.sign(y_pred)))
