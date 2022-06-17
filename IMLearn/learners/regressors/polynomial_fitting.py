@@ -36,8 +36,6 @@ class PolynomialFitting(BaseEstimator):
         """
         X_vander = self.__transform(X)
         self.linear_regression._fit(X_vander, y)
-        # self.coefs = self.linear_regression.coefs_
-        # self.coefs_ = (np.linalg.pinv(X_vander) @ y)
 
     def _predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -54,10 +52,8 @@ class PolynomialFitting(BaseEstimator):
             Predicted responses of given samples
         """
         X_vander = self.__transform(X)
-        # return self.linear_regression._predict(X_vander)
-        return self.linear_regression._predict(X)
+        return self.linear_regression._predict(X_vander)
 
-        # return (X_vander @ self.coefs_)
 
     def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
         """
