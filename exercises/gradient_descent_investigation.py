@@ -7,8 +7,10 @@ from IMLearn.desent_methods import GradientDescent, FixedLR, ExponentialLR
 from IMLearn.desent_methods.modules import L1, L2
 from IMLearn.learners.classifiers.logistic_regression import LogisticRegression
 from IMLearn.utils import split_train_test
-
+from IMLearn.metrics.loss_functions import misclassification_error
+from IMLearn.model_selection import cross_validate
 import plotly.graph_objects as go
+
 
 
 def plot_descent_path(module: Type[BaseModule],
@@ -50,8 +52,10 @@ def plot_descent_path(module: Type[BaseModule],
         return np.array([module(weights=wi).compute_output() for wi in w])
 
     from utils import decision_surface
-    return go.Figure([decision_surface(predict_, xrange=xrange, yrange=yrange, density=70, showscale=False),
-                      go.Scatter(x=descent_path[:, 0], y=descent_path[:, 1], mode="markers+lines", marker_color="black")],
+    return go.Figure([decision_surface(predict_, xrange=xrange, yrange=yrange,
+                                       density=70, showscale=False),
+                      go.Scatter(x=descent_path[:, 0], y=descent_path[:, 1], mode="markers+lines",
+                                 marker_color="black")],
                      layout=go.Layout(xaxis=dict(range=xrange),
                                       yaxis=dict(range=yrange),
                                       title=f"GD Descent Path {title}"))
@@ -73,25 +77,101 @@ def get_gd_state_recorder_callback() -> Tuple[Callable[[], None], List[np.ndarra
     weights: List[np.ndarray]
         Recorded parameters
     """
-    raise NotImplementedError()
+    values_list = []
+    weights_list = []
+
+    def callback(**kwargs):
+        values_list.append(kwargs["val"])
+        weights_list.append(kwargs["weights"])
+
+    return callback, values_list, weights_list
 
 
 def compare_fixed_learning_rates(init: np.ndarray = np.array([np.sqrt(2), np.e / 3]),
                                  etas: Tuple[float] = (1, .1, .01, .001)):
-    raise NotImplementedError()
+
+    l1_loss, l1_eta, l2_loss, l2_eta = [], [], [], []
+
+    for ind, modul in enumerate([L1, L2]):
+        for eta in etas:
+            callback_func, values_list, weights_list = get_gd_state_recorder_callback()
+            gd = GradientDescent(FixedLR(eta), callback=callback_func)
+            gd.fit(modul(init), X=None, y=None)
+
+            # Q1
+            fig1 = plot_descent_path(modul, np.array(weights_list),
+                            "{0} Norm Decent Trajectory for eta = {1}".format(modul.__name__, eta))
+
+            fig1.show()
+
+            # Q2
+            fig2 = go.Figure(go.Scatter(x=list(range(0, len(values_list))), y=values_list,
+                                        mode="lines+markers", name=modul.__name__))
+            fig2.update_layout(title="Convergence Rate for {0} Norm and eta = {1}".
+                               format(modul.__name__, eta),
+                               xaxis={"title": "Num of Iteration"},
+                               yaxis={"title": "Norm"})
+            fig2.show()
+
+            if (ind == 0):
+                l1_loss.append(np.min(values_list))
+                l1_eta.append(eta)
+
+            else:
+                l2_loss.append(np.min(values_list))
+                l2_eta.append(eta)
+
+    l1_min_loss, l2_min_loss = np.min(l1_loss), np.min(l2_loss)
+    l1_min_eta, l2_min_eta = l1_eta[np.argmin(l1_loss)], l2_eta[np.argmin(l2_loss)]
+
+    print("The lowest loss recorded for modul L1 is- {0}, and the eta is- {1}".format(l1_min_loss,
+                                                                                      l1_min_eta))
+    print("The lowest loss recorded for modul L2 is- {0}, and the eta is- {1}".format(l2_min_loss,
+                                                                                      l2_min_eta))
+
 
 
 def compare_exponential_decay_rates(init: np.ndarray = np.array([np.sqrt(2), np.e / 3]),
                                     eta: float = .1,
                                     gammas: Tuple[float] = (.9, .95, .99, 1)):
-    # Optimize the L1 objective using different decay-rate values of the exponentially decaying learning rate
-    raise NotImplementedError()
+
+    # Optimize the L1 objective using different decay-rate values of the exponentially
+    # decaying learning rate
 
     # Plot algorithm's convergence for the different values of gamma
-    raise NotImplementedError()
+    min_norm = np.inf
+
+    fig3 = go.Figure().update_layout(title="Convergence for L1 Norm as a Function of Decay-Rate",
+                       xaxis={"title": "Num of Iteration"},
+                       yaxis={"title": "Norm"})
+
+    for gamma in gammas:
+        callback_func, values_list, weights_list = get_gd_state_recorder_callback()
+        gd = GradientDescent(ExponentialLR(eta, gamma), callback=callback_func)
+        gd.fit(L1(init), X=None, y=None)
+
+        curr_min = np.min(values_list)
+        if curr_min < min_norm:
+            min_norm = curr_min
+
+        fig3.add_trace(go.Scatter(x=list(range(0, len(values_list))), y=values_list,
+                                    mode="lines+markers", name="gamma = {0}".format(gamma)))
+
+    fig3.show()
+
+    print("The lowest loss recorded for L1 is- {0}".format(min_norm))
 
     # Plot descent path for gamma=0.95
-    raise NotImplementedError()
+    for ind, modul in enumerate([L1, L2]):
+        callback_func, values_list, weights_list = get_gd_state_recorder_callback()
+        gd = GradientDescent(ExponentialLR(eta, .95), callback=callback_func)
+        gd.fit(modul(init), X=None, y=None)
+
+        fig4 = plot_descent_path(modul, np.array(weights_list),
+                         "{0} Norm Decent Trajectory for gamma = 0.95".format(modul.__name__))
+
+        fig4.show()
+
 
 
 def load_data(path: str = "../datasets/SAheart.data", train_portion: float = .8) -> \
@@ -131,11 +211,58 @@ def fit_logistic_regression():
     X_train, y_train, X_test, y_test = load_data()
 
     # Plotting convergence rate of logistic regression over SA heart disease data
-    raise NotImplementedError()
+    from sklearn.metrics import roc_curve
+
+    lr = LogisticRegression(solver=GradientDescent(learning_rate=FixedLR(1e-4), max_iter=20000))
+    lr.fit(np.array(X_train), np.array(y_train))
+    y_proba = lr.predict_proba(np.array(X_train))
+    fpr, tpr, thresh = roc_curve(y_train, y_proba)
+    fig5 = go.Figure(
+        go.Scatter(x=fpr, y=tpr, mode='lines+markers', text=thresh, name="",
+                   hovertemplate="<b>Threshold:</b>%{text:.3f}<br>FPR: %{x:.3f}<br>TPR: %{y:.3f}"))
+    fig5.update_layout(title="ROC Curve for Fitted Model- Logistic Regressor with Gradient Descent",
+                       xaxis={"title": "FPR"},
+                       yaxis={"title": "TPR"})
+    fig5.show()
+
+
+    alphas = np.linspace(0, 1, 101)
+    alphas_arr = []
+    for alpha in alphas:
+        y_prob_alpha = np.where(y_proba >= alpha, 1, 0)
+        curr_fpr, curr_tpr, curr_thresh = roc_curve(y_train, y_prob_alpha)
+        alphas_arr.append((curr_tpr - curr_fpr)[1])
+
+    best_alpha = alphas[np.argmax(alphas_arr)]
+    best_alpha_model = LogisticRegression(solver=GradientDescent(learning_rate=FixedLR(1e-4),
+                                                           max_iter=20000), alpha=best_alpha)
+    best_alpha_model.fit(np.array(X_train), np.array(y_train))
+    best_alpha_error = best_alpha_model.loss(np.array(X_train), np.array(y_train))
+
+    print("The best alpha is- {0}, and the error is- {1}".format(best_alpha, best_alpha_error))
+
 
     # Fitting l1- and l2-regularized logistic regression models, using cross-validation to specify values
-    # of regularization parameter
-    raise NotImplementedError()
+    # using cross-validation to specify values of regularization parameter l1
+    lambdas = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1]
+    for modul in ['l1', 'l2']:
+        validation_res = []
+        for lam in lambdas:
+            model = LogisticRegression(solver=GradientDescent(learning_rate=FixedLR(1e-4),
+                                                              max_iter=20000),
+                                       alpha=0.5, penalty=modul, lam=lam)
+            curr_validation = cross_validate(model, np.array(X_train), np.array(y_train),
+                                                    misclassification_error)[1]
+            validation_res.append(curr_validation)
+
+        best_lam = lambdas[np.argmin(validation_res)]
+        best_model = LogisticRegression(solver=GradientDescent(learning_rate=FixedLR(1e-4),
+                                                               max_iter=20000),
+                                        alpha=0.5, penalty=modul, lam=best_lam)
+        best_model.fit(np.array(X_train), np.array(y_train))
+        best_error = best_model.loss(np.array(X_train), np.array(y_train))
+        print("The error recorded in modul {0} is- {1}, for lambda- {2}".format(
+                                        modul, best_error, best_lam))
 
 
 if __name__ == '__main__':
@@ -143,3 +270,4 @@ if __name__ == '__main__':
     compare_fixed_learning_rates()
     compare_exponential_decay_rates()
     fit_logistic_regression()
+
